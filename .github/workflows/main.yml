@@ -1,0 +1,36 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install Velopack CLI
+      run: dotnet tool install -g vpk
+
+    - name: Build and Package
+      run: |
+        dotnet publish -c Release -r win-x64 --self-contained true
+        vpk pack -u "SaveBackup" -v "1.0.${{ github.run_number }}" -p "bin/Release/net8.0-windows/win-x64/publish" -o "Releases"
+
+    - name: Upload Installer to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          Releases/Setup.exe
+          Releases/RELEASES
+          Releases/*.nupkg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
