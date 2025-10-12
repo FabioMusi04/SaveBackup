@@ -21,7 +21,10 @@ jobs:
       - name: Get Version from Project File
         id: get-version
         shell: bash
-        run: echo "version=$(grep -oE '<Version>[^<]+' SaveBackup/SaveBackup.csproj | sed 's/<Version>//')" >> $GITHUB_OUTPUT
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>).*?(?=</Version>)' SaveBackup/SaveBackup.csproj)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
 
       # Step 3: Install .NET 8
       - name: Install .NET
@@ -41,9 +44,12 @@ jobs:
       - name: Check for previous release
         id: release-check
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view "SaveBackup ${{ steps.get-version.outputs.version }}" --repo $GITHUB_REPOSITORY
         continue-on-error: true
+
 
       # Step 7: Download previous release only if exists (for delta updates)
       - name: Velopack download previous release
