@@ -3,61 +3,27 @@ name: Deploy to GitHub Releases
 on:
   push:
     branches:
-      - master
-
-permissions:
-  contents: write  # Needed for GitHub Releases upload
+      - main
 
 jobs:
   deploy-to-github-releases:
     runs-on: windows-latest
     steps:
-
-      # Step 1: Checkout the repo
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      # Step 2: Extract version from .csproj
       - name: Get Version from Project File
         id: get-version
         shell: bash
-        run: |
-          VERSION=$(grep -oP '(?<=<Version>).*?(?=</Version>)' SaveBackup/SaveBackup.csproj)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-
-      # Step 3: Install .NET 8
+        run: echo "version=$(grep -oE '<Version>[^<]+' MyApplication/MyApplication.csproj | sed 's/<Version>//')" >> $GITHUB_OUTPUT
       - name: Install .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-
-      # Step 4: Publish the app
       - name: Publish Application
-        run: dotnet publish SaveBackup/SaveBackup.csproj -c Release -o publish -r win-x64 --self-contained true
-
-      # Step 5: Install Velopack CLI
-      - name: Install Velopack CLI
-        run: dotnet tool install -g vpk
-
-      # Step 6: Check if previous release exists
-      - name: Check for previous release
-        id: release-check
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet publish MyProject/MyProject.csproj -c Release -o publish -r win-x64 --self-contained true
+      - name: Create Velopack Release
         run: |
-          gh release view "SaveBackup ${{ steps.get-version.outputs.version }}" --repo $GITHUB_REPOSITORY
-        continue-on-error: true
-
-
-      # Step 7: Download previous release only if exists (for delta updates)
-      - name: Velopack download previous release
-        if: steps.release-check.outcome == 'success'
-        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --channel win --token ${{ secrets.GITHUB_TOKEN }}
-
-      # Step 8: Pack and upload Velopack release
-      - name: Pack and upload Velopack release
-        run: |
-          vpk pack -u SaveBackup -v ${{ steps.get-version.outputs.version }} --packDir publish --channel win
-          vpk upload github --repoUrl https://github.com/${{ github.repository }} --publish --releaseName "SaveBackup ${{ steps.get-version.outputs.version }}" --channel win --token ${{ secrets.GITHUB_TOKEN }}
+          dotnet tool install -g vpk
+          vpk download github --repoUrl https://github.com/${{ github.repository }}
+          vpk pack -u MyUniqueIdentifier -v ${{ steps.get-version.outputs.version }} -p publish
+          vpk upload github --repoUrl https://github.com/${{ github.repository }} --publish --releaseName "MyProject ${{ steps.get-version.outputs.version }}" --tag v${{ steps.get-version.outputs.version }}
