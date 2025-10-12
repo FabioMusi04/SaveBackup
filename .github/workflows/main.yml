@@ -1,36 +1,42 @@
-name: Build and Release
+name: Deploy to GitHub Releases
 
 on:
   push:
-    branches: [ master ]
-  workflow_dispatch:
+    branches:
+      - master
+
+permissions:
+  contents: write  # Needed for GitHub Releases upload
 
 jobs:
-  build:
+  deploy-to-github-releases:
     runs-on: windows-latest
-
     steps:
-    - uses: actions/checkout@v4
 
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      # Step 1: Checkout the repo
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Install Velopack CLI
-      run: dotnet tool install -g vpk
+      # Step 2: Extract version from .csproj
+      - name: Get Version from Project File
+        id: get-version
+        shell: bash
+        run: echo "version=$(grep -oE '<Version>[^<]+' SaveBackup/SaveBackup.csproj | sed 's/<Version>//')" >> $GITHUB_OUTPUT
 
-    - name: Build and Package
-      run: |
-        dotnet publish -c Release -r win-x64 --self-contained true
-        vpk pack -u "SaveBackup" -v "1.0.${{ github.run_number }}" -p "bin/Release/net8.0-windows/win-x64/publish" -o "Releases"
+      # Step 3: Install .NET 8
+      - name: Install .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-    - name: Upload Installer to Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          Releases/Setup.exe
-          Releases/RELEASES
-          Releases/*.nupkg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Step 4: Publish your app
+      - name: Publish Application
+        run: dotnet publish SaveBackup/SaveBackup.csproj -c Release -o publish -r win-x64 --self-contained true
+
+      # Step 5: Package with Velopack and upload release
+      - name: Create Velopack Release
+        run: |
+          dotnet tool install -g vpk
+          vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+          vpk pack -u SaveBackup -v ${{ steps.get-version.outputs.version }} -p publish
+          vpk upload github --repoUrl https://github.com/${{ github.repository }} --publish --releaseName "SaveBackup ${{ steps.get-version.outputs.version }}" --token ${{ secrets.GITHUB_TOKEN }}
