@@ -29,12 +29,29 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      # Step 4: Publish your app
+      # Step 4: Publish the app
       - name: Publish Application
         run: dotnet publish SaveBackup/SaveBackup.csproj -c Release -o publish -r win-x64 --self-contained true
 
-      # Step 5: Package with Velopack and upload release
-      - name: Create Velopack Release
+      # Step 5: Install Velopack CLI
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      # Step 6: Check if previous release exists
+      - name: Check for previous release
+        id: release-check
+        shell: bash
         run: |
-          dotnet tool install -g vpk
+          gh release view "SaveBackup ${{ steps.get-version.outputs.version }}" --repo $GITHUB_REPOSITORY
+        continue-on-error: true
+
+      # Step 7: Download previous release only if exists (for delta updates)
+      - name: Velopack download previous release
+        if: steps.release-check.outcome == 'success'
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --channel win --token ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 8: Pack and upload Velopack release
+      - name: Pack and upload Velopack release
+        run: |
+          vpk pack -u SaveBackup -v ${{ steps.get-version.outputs.version }} --packDir publish --channel win
           vpk upload github --repoUrl https://github.com/${{ github.repository }} --publish --releaseName "SaveBackup ${{ steps.get-version.outputs.version }}" --channel win --token ${{ secrets.GITHUB_TOKEN }}
